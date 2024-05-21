@@ -1,0 +1,9 @@
+# Ignore the data directory
+data/
+runs/
+__pycache__/
+mmpose/
+
+# Ignore the nohup.out file
+nohup.out
+
