@@ -1,30 +1,16 @@
-from torch.utils.data import Dataset
+from basedataset import BaseDataset
+
 import torch
 
 from collections import Counter
-import pandas as pd
 import json
-import glob
 import pdb
 import os
 
-class URFallDataset(Dataset):
-    def __init__(self, data_path, label_path, save_path, n_frames, wh=[640,480], device='cuda', header=None):
-        self.data_path = data_path
-        self.label_path = label_path
-        self.save_path = save_path
-        self.n_frames = n_frames
-        self.wh = wh
-        self.device = device
+class URFallDataset(BaseDataset):
+    def __init__(self, **kwargs):
+        super().__init__(kwargs)
 
-        # Use a step == n_frames range() to check if the first file 
-        self.valid_idx = []
-        
-        self.label = pd.read_csv(label_path, header=header)
-
-    def __len__(self):
-        return len(self.valid_idx)
-    
     def __getitem__(self, idx):
         # If the batch data is saved
         pt_file = f'{self.save_path}/batch_{str(idx)}.pt'
@@ -34,12 +20,13 @@ class URFallDataset(Dataset):
         # Otherwise we save it 
         name = []
         data = []
-        label = [0] * 3
         labels = []
+        label = [0] * 3
 
         # Load json file
+        idx = self.valid_idx[idx]
         for i in range(self.n_frames):
-            json_file = self.data_files[self.valid_idx[idx+i]]
+            json_file = self.data_files[idx+i]
             with open(json_file, 'r') as file:
                 json_data = json.load(file)
             data.append(json_data[0]['keypoints'])
@@ -81,6 +68,6 @@ if __name__ == '__main__':
     label_path = 'data/URFall/annotation/urfall-cam0-falls.csv'
     n_frames = 5
 
-    dataset = URFallDataset(data_path, label_path, '.', n_frames)
+    dataset = URFallDataset(data_path, label_path, '.', os.listdir('data/URFall/images'),n_frames)
     for data in dataset:
         pass

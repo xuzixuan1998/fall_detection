@@ -7,11 +7,11 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
 from config import MLPConfig
 from model import FallDetectionMLPV2
-from dataset import URFallDataset
+from datasets import URFallDataset
 from utility import split_train_val_dataloader, save_images
 
 import pdb
@@ -34,7 +34,7 @@ def train_loop(model, train_loader, optimizer, criterion):
     
     return total_loss / len(train_loader)
 
-def evaluate(model, val_loader, criterion, save_image=False, output_dir=None):
+def evaluate(model, val_loader, criterion, name='val', save_image=False, output_dir=None):
     model.eval()  # Set the model to evaluation mode
 
     metrics = {}
@@ -59,14 +59,17 @@ def evaluate(model, val_loader, criterion, save_image=False, output_dir=None):
                 cnt += n_wrong
 
     # Compute some metrics
+    metrics['dataset'] = name
     metrics['loss'] = total_loss / len(val_loader)
     metrics['accuracy'] = accuracy_score(y_true, y_pred)
-    metrics['precision'] = precision_score(y_true, y_pred, average='macro')
-    metrics['recall'] = recall_score(y_true, y_pred, average='macro')
-    metrics['f1'] = f1_score(y_true, y_pred, average='macro')
+
+    precision, recall, f1, _ = precision_recall_fscore_support(y_true, y_pred, labels=[-1, 0, 1], average=None)
+    for i in range(len(precision)):
+        metrics[f'precision/{i-1}'] = precision[i]
+        metrics[f'recall/{i-1}'] = recall[i]
+        metrics[f'f1/{i-1}'] = f1[i]
     
-    cm = confusion_matrix(y_true, y_pred)
-    return metrics, cm
+    return metrics
 
 def train(model, train_loader, val_loader, config, device):
     # Configure the logger
@@ -108,7 +111,7 @@ def train(model, train_loader, val_loader, config, device):
     logger.info('=======================================Start training=======================================')
     for epoch in range(config.n_epochs):
         train_loss = train_loop(model, train_loader, optimizer, criterion)
-        val_metrics, _ = evaluate(model, val_loader, criterion)
+        val_metrics = evaluate(model, val_loader, criterion)
 
         # Adjust learning rate
         scheduler.step(val_metrics['loss'])
@@ -118,14 +121,13 @@ def train(model, train_loader, val_loader, config, device):
         writer.add_scalar('Loss/train', train_loss, epoch)
         writer.add_scalar('Loss/val', val_metrics['loss'], epoch)
         writer.add_scalar('Accuracy/val', val_metrics['accuracy'], epoch)
-        writer.add_scalar('Precision/val', val_metrics['precision'], epoch)
-        writer.add_scalar('Recall/val', val_metrics['recall'], epoch)
-        writer.add_scalar('F1/val', val_metrics['f1'], epoch)
-    
-        # Add confusion matrix figure 
-        
 
-        logger.info(f"Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Val Loss: {val_metrics['loss']:.4f}, Val Accuracy: {val_metrics['accuracy']:.4f}")
+        for i in range(3):
+            writer.add_scalar(f'Precision/{i-1}', val_metrics[f'precision/{i-1}'], epoch)
+            writer.add_scalar(f'Recall/{i-1}', val_metrics[f'recall/{i-1}'], epoch)
+            writer.add_scalar(f'F1/{i-1}', val_metrics[f'f1/{i-1}'], epoch)
+
+        logger.info(f"Epoch {epoch+1}, Train Loss: {train_loss:.4f}, Val Loss: {val_metrics['loss']:.4f}")
 
         # Save the best model and metrics
         if val_metrics['loss'] < best_val_loss:
@@ -136,19 +138,9 @@ def train(model, train_loader, val_loader, config, device):
     logger.info('=======================================End training=======================================')
     # Save train/val set metrics to CSV
     model.load_state_dict(torch.load(config.model_path))
-    train_metrics, _ = evaluate(model, train_loader, criterion, save_image=True)
-    metrics = {
-        'dataset': ['train'],
-        'loss': [train_metrics['loss']],
-        'accuracy': [train_metrics['accuracy']],
-        'precision': [train_metrics['precision']],
-        'recall': [train_metrics['recall']],
-        'f1_score': [train_metrics['f1']]
-    }
-    df = pd.DataFrame(metrics)
-    val_metrics, _ = evaluate(model, val_loader, criterion, save_image=True, output_dir=f'{config.output_dir}/val')
-    val_metrics['dataset'] = 'val'
-    df.loc[len(df)] = val_metrics
+    train_metrics = evaluate(model, train_loader, criterion, name='train')
+    val_metrics = evaluate(model, val_loader, criterion, save_image=True, output_dir=f'{config.output_dir}/val')
+    df = pd.DataFrame([train_metrics, val_metrics])
     df.to_csv(config.csv_path, index=False)
 
     writer.close()
@@ -175,3 +167,6 @@ if __name__ == '__main__':
 
     # Train
     train(model, train_loader, val_loader, config, device)
+
+    # Evaluate 
+    

@@ -24,7 +24,7 @@ class MLPConfig():
     test_split = None
 
     # Model
-    hidden_size = [512, 256]
+    hidden_size = [256, ]
 
     # Training
     loss_function = 'ce'
