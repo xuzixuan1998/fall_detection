@@ -4,25 +4,11 @@ import torch.nn as nn
 import pdb
 import time
 
-from config import MLPConfig
+from configs.mlpconfig import MLPConfig
 
 class FallDetectionMLP(nn.Module):
-    def __init__(self, n_keypoints=17, n_frames=5, n_classes=3):
-        super(FallDetectionMLP, self).__init__()
-        
-        self.linear1 = nn.Linear(2*n_keypoints*n_frames, 128)  
-        self.linear2 = nn.Linear(128, n_classes)
-        self.softmax = nn.Softmax(dim=1)
-
-    def forward(self, x):
-        x = self.linear1(x.view(x.shape[0],-1))  
-        x = torch.relu(x)        
-        x = self.linear2(x)  
-        return self.softmax(x)
-
-class FallDetectionMLPV2(nn.Module):
     def __init__(self, n_keypoints=17, n_frames=5, n_classes=3, hidden_size=[256]):
-        super(FallDetectionMLPV2, self).__init__()
+        super(FallDetectionMLP, self).__init__()
         # Embed each keypoints
         self.embedding = nn.Linear(2*n_keypoints, hidden_size[0])  
         # Define MLP
@@ -42,7 +28,7 @@ class FallDetectionMLPV2(nn.Module):
     
 if __name__ == '__main__':
     config = MLPConfig()
-    model = FallDetectionMLPV2(n_frames=config.n_frames, hidden_size=config.hidden_size)
+    model = FallDetectionMLP(n_frames=config.n_frames, hidden_size=config.hidden_size)
 
     model.eval()
     data = torch.randn(1, 5, 34)

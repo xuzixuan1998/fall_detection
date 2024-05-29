@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 
 class MLPConfig():
@@ -13,23 +12,31 @@ class MLPConfig():
     csv_path = f'{save_dir}/results.csv'
     cache_dir = f'{save_dir}/cache'
 
-    # Dataset
+    # Train Dataset
     seed = 42
-    data_path = 'data/URFall/keypoints/predictions/'
-    label_path = 'data/URFall/annotation/urfall-cam0-falls.csv'
-    video_names = os.listdir('data/URFall/images')
+    data_path = 'data/KUL/keypoints/predictions/'
+    label_path = 'data/KUL/annotation/annotations.csv'
+    video_path = 'data/KUL/images'
     n_frames = 5
     train_split = 0.7
     val_split = 0.3
-    test_split = None
+
+    # Test Dataset
+    test_data_path = 'data/URFall/keypoints/predictions/'
+    test_label_path = 'data/URFall/annotation/urfall-cam0-falls.csv'
+    test_video_path = 'data/URFall/images'
 
     # Model
-    hidden_size = [256, ]
+    hidden_size = [256, 512]
 
     # Training
-    loss_function = 'ce'
+    # loss_function = 'ce'
+    loss_function = 'focal'
+    gamma = 1
+    alpha = [0.2, 0.6, 0.2]
+
     optimizer = 'adam'
     scheduler = 'plateau'
     learning_rate = 1e-3
-    batch_size = 128
+    batch_size = 512
     n_epochs = 500

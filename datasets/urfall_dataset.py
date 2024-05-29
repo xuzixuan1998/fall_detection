@@ -1,4 +1,4 @@
-from basedataset import BaseDataset
+from .base_dataset import BaseDataset
 
 import torch
 
@@ -8,20 +8,18 @@ import pdb
 import os
 
 class URFallDataset(BaseDataset):
-    def __init__(self, **kwargs):
-        super().__init__(kwargs)
 
     def __getitem__(self, idx):
         # If the batch data is saved
-        pt_file = f'{self.save_path}/batch_{str(idx)}.pt'
-        if os.path.exists(pt_file):
-            return torch.load(pt_file)
+        if self.save:
+            pt_file = f'{self.save_path}/batch_{str(idx)}.pt'
+            if os.path.exists(pt_file):
+                return torch.load(pt_file)
         
-        # Otherwise we save it 
-        name = []
+        # Load n frames
         data = []
+        paths = []
         labels = []
-        label = [0] * 3
 
         # Load json file
         idx = self.valid_idx[idx]
@@ -29,7 +27,12 @@ class URFallDataset(BaseDataset):
             json_file = self.data_files[idx+i]
             with open(json_file, 'r') as file:
                 json_data = json.load(file)
-            data.append(json_data[0]['keypoints'])
+
+            # Normalization
+            keypoints = torch.tensor(json_data[0]['keypoints'])
+            bbox = torch.tensor(json_data[0]['bbox'])
+            xy, wh = bbox[:,:2], bbox[:,2:]-bbox[:,:2]
+            data.append((keypoints-xy)/wh)
 
             # Query and store labels
             file_name = os.path.basename(json_file)[:-5]
@@ -39,7 +42,7 @@ class URFallDataset(BaseDataset):
             video_prefix = f'{video_type}-{video_idx}'
             folder_path = f'{video_prefix}-cam0-rgb'
             image_name = f'{file_name}.png'
-            name.append(f'data/URFall/images/{folder_path}/{image_name}')
+            paths.append(f'{self.video_path}/{folder_path}/{image_name}')
 
             if video_type == 'adl':
                 labels.append(-1)
@@ -51,23 +54,22 @@ class URFallDataset(BaseDataset):
                 labels.append(query_result.iloc[2])
 
         # Majority vote
+        label = [0] * 3
         label_counts = Counter(labels)
         label[label_counts.most_common(1)[0][0]+1] = 1
 
-        # Normalization
-        data = torch.tensor(data, dtype=torch.float32)
-        normalized_data = data / torch.tensor(self.wh).view(1, 1, 2)
-
         # Save pt file
-        data_dict = {'image_paths': name, 'data':normalized_data.view(self.n_frames,-1).to(self.device), 'label':torch.tensor(label, dtype=torch.float32).to(self.device)}
-        torch.save(data_dict, pt_file)
+        data_dict = {'image_paths': paths, 'data':torch.stack(data).view(self.n_frames,-1).to(self.device), 'label':torch.tensor(label, dtype=torch.float32).to(self.device)}
+        if self.save:
+            torch.save(data_dict, pt_file)
         return data_dict
 
 if __name__ == '__main__':
-    data_path = 'data/URFall/keypoints/predictions/'
-    label_path = 'data/URFall/annotation/urfall-cam0-falls.csv'
+    data_path = '../data/URFall/keypoints/predictions/'
+    label_path = '../data/URFall/annotation/urfall-cam0-falls.csv'
+    video_path = '../data/URFall/images'
     n_frames = 5
 
-    dataset = URFallDataset(data_path, label_path, '.', os.listdir('data/URFall/images'),n_frames)
+    dataset = URFallDataset(data_path, label_path, video_path, n_frames)
     for data in dataset:
         pass

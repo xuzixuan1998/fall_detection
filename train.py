@@ -1,17 +1,18 @@
 import os
 import logging
-import numpy as np
 import pandas as pd
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 
-from config import MLPConfig
-from model import FallDetectionMLPV2
-from datasets import URFallDataset
+from configs import MLPConfig
+from models import FallDetectionMLP
+from models.loss import FocalLoss
+from datasets import URFallDataset, KULDataset
 from utility import split_train_val_dataloader, save_images
 
 import pdb
@@ -37,10 +38,10 @@ def train_loop(model, train_loader, optimizer, criterion):
 def evaluate(model, val_loader, criterion, name='val', save_image=False, output_dir=None):
     model.eval()  # Set the model to evaluation mode
 
-    metrics = {}
     y_pred = []
     y_true = []
-    cnt, total_loss = 0, 0
+    metrics = {}
+    total_loss = 0.
     with torch.no_grad():  # Disable gradient computation
         for batch in val_loader:
             outputs = model(batch['data'])
@@ -54,9 +55,7 @@ def evaluate(model, val_loader, criterion, name='val', save_image=False, output_
 
             # Print wrongly classified images
             if save_image:
-                n_wrong = torch.sum(pred!=true)
-                save_images(batch['image_paths'], true, pred, output_dir, cnt)
-                cnt += n_wrong
+                save_images(batch['image_paths'], true, pred, output_dir=f'{output_dir}/{name}')
 
     # Compute some metrics
     metrics['dataset'] = name
@@ -71,7 +70,12 @@ def evaluate(model, val_loader, criterion, name='val', save_image=False, output_
     
     return metrics
 
-def train(model, train_loader, val_loader, config, device):
+def train(model, train_loader, val_loader, test_loader, config, device):
+    # TensorBoard setup
+    os.makedirs(config.tensorboard_dir)
+    writer = SummaryWriter(log_dir=config.tensorboard_dir)
+    best_val_loss = float('inf')
+
     # Configure the logger
     logging.basicConfig(level=logging.INFO, 
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -90,6 +94,8 @@ def train(model, train_loader, val_loader, config, device):
     'n_frames': config.n_frames,
     'optimizer': config.optimizer,
     'loss function': config.loss_function,
+    'gamma': config.gamma,
+    'alpha': config.alpha,
     'scheduler': config.scheduler
     }
     logger.info(hyperparameters)
@@ -100,13 +106,11 @@ def train(model, train_loader, val_loader, config, device):
     if config.optimizer == 'adam':
         optimizer = optim.Adam(model.parameters(), lr=config.learning_rate)
     if config.loss_function == 'ce':
-        criterion = nn.CrossEntropyLoss(weight=torch.tensor([0.1, 1., 1.]).to(device))
+        criterion = nn.CrossEntropyLoss(weight=torch.tensor(config.alpha).to(device))
+    elif config.loss_function == 'focal':
+        criterion = FocalLoss(gamma=config.gamma, alpha=config.alpha)
     if config.scheduler == 'plateau':
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=50, threshold=1e-7)
-
-    # TensorBoard setup
-    writer = SummaryWriter(log_dir=config.tensorboard_dir)
-    best_val_loss = float('inf')
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min', factor=0.5, patience=40, threshold=1e-7)
 
     logger.info('=======================================Start training=======================================')
     for epoch in range(config.n_epochs):
@@ -136,11 +140,13 @@ def train(model, train_loader, val_loader, config, device):
             logger.info(f"Saved better model!")
 
     logger.info('=======================================End training=======================================')
-    # Save train/val set metrics to CSV
+
+    # Save train/val/test set metrics to CSV
     model.load_state_dict(torch.load(config.model_path))
     train_metrics = evaluate(model, train_loader, criterion, name='train')
-    val_metrics = evaluate(model, val_loader, criterion, save_image=True, output_dir=f'{config.output_dir}/val')
-    df = pd.DataFrame([train_metrics, val_metrics])
+    val_metrics = evaluate(model, val_loader, criterion, name='val', save_image=True, output_dir=config.output_dir)
+    test_metrics = evaluate(model, test_loader, criterion, name='test', save_image=True, output_dir=config.output_dir)
+    df = pd.DataFrame([train_metrics, val_metrics, test_metrics])
     df.to_csv(config.csv_path, index=False)
 
     writer.close()
@@ -151,22 +157,17 @@ if __name__ == '__main__':
 
     # Create save_dir
     config = MLPConfig()
-    os.makedirs(config.tensorboard_dir)
-    os.makedirs(config.output_dir)
-    os.makedirs(config.cache_dir)
-
+    
     # Some customized components
-    dataset = URFallDataset(config.data_path, config.label_path, config.cache_dir, config.video_names, config.n_frames, device=device)
-    model = FallDetectionMLPV2(n_frames=config.n_frames, hidden_size=config.hidden_size)
+    dataset = KULDataset(config.data_path, config.label_path, config.video_path, config.n_frames, device=device, save=True, save_path=config.cache_dir)
+    model = FallDetectionMLP(n_frames=config.n_frames, hidden_size=config.hidden_size)
 
-    # Split data and create dataloader
-    if config.test_split:
-        train_loader, val_loader, test_loader = split_train_val_dataloader(dataset, config.train_split, config.val_split, config.test_split, batch_size=config.batch_size, seed=config.seed)
-    else:
-        train_loader, val_loader = split_train_val_dataloader(dataset, config.train_split, config.val_split, config.test_split, batch_size=config.batch_size, seed=config.seed)
+    # Split training data and create dataloader
+    train_loader, val_loader = split_train_val_dataloader(dataset, config.train_split, config.val_split, batch_size=config.batch_size, seed=config.seed)
+
+    # Create test loader
+    test_dataset = URFallDataset(config.test_data_path, config.test_label_path, config.test_video_path, config.n_frames, device=device)
+    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False)
 
     # Train
-    train(model, train_loader, val_loader, config, device)
-
-    # Evaluate 
-    
+    train(model, train_loader, val_loader, test_loader, config, device)

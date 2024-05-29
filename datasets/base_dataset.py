@@ -1,21 +1,28 @@
 from torch.utils.data import Dataset
 
+import os
 import glob
 import pandas as pd
 
+import pdb
+
 class BaseDataset(Dataset):
-    def __init__(self, data_path, label_path, save_path, video_names, n_frames, wh=[640,480], device='cuda', header=None):
+    def __init__(self, data_path, label_path, video_path, n_frames, device='cuda', save=False, save_path=None):
         self.data_path = data_path
         self.label_path = label_path
-        self.save_path = save_path
+        self.video_path = video_path
         self.n_frames = n_frames
-        self.wh = wh
         self.device = device
-
+        self.save = save
+        self.save_path = save_path
+        if save_path:
+            os.makedirs(save_path)
+        
         # Create valid_idx
         self.valid_idx = []
         self.data_files = []
-        self.label = pd.read_csv(label_path, header=header)
+        video_names = os.listdir(self.video_path)
+        self.label = pd.read_csv(label_path, header=None)
         
         next_start = 0
         for video_name in video_names:
@@ -28,5 +35,5 @@ class BaseDataset(Dataset):
         return len(self.valid_idx)
     
     # Override this function
-    def __getitem__(self, idx):
+    def __getitem__(self):
         pass
