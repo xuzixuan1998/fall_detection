@@ -36,22 +36,16 @@ class URFallDataset(BaseDataset):
 
             # Query and store labels
             file_name = os.path.basename(json_file)[:-5]
-            video_type, video_idx, _, _, frame_idx = file_name.split('-')
+            video_type, video_idx, cam_idx, frame_idx = file_name.split('-')
 
             # Store image paths
-            video_prefix = f'{video_type}-{video_idx}'
-            folder_path = f'{video_prefix}-cam0-rgb'
+            video_name = f'{video_type}-{video_idx}'
+            folder_path = f'{video_name}-{cam_idx}'
             image_name = f'{file_name}.png'
             paths.append(f'{self.video_path}/{folder_path}/{image_name}')
 
-            if video_type == 'adl':
-                labels.append(-1)
-                continue
-            query_result = self.label[(self.label[0] == video_prefix) & (self.label[1] == int(frame_idx))].iloc[0]
-            if query_result.iloc[-1] == 1:
-                labels.append(-1)
-            else:
-                labels.append(query_result.iloc[2])
+            query_result = self.label[(self.label[0] == video_name) & (self.label[1] == int(frame_idx))].iloc[0]
+            labels.append(query_result.iloc[2])
 
         # Majority vote
         label = [0] * 3

@@ -23,7 +23,7 @@ class MLPConfig():
 
     # Test Dataset
     test_data_path = 'data/URFall/keypoints/predictions/'
-    test_label_path = 'data/URFall/annotation/urfall-cam0-falls.csv'
+    test_label_path = 'data/URFall/annotation/annotations.csv'
     test_video_path = 'data/URFall/images'
 
     # Model
