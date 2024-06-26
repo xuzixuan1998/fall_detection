@@ -6,4 +6,5 @@ mmpose/
 
 # Ignore the nohup.out file
 nohup.out
-
+*.log
+*.sh

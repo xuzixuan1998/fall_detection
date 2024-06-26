@@ -14,11 +14,11 @@ inferencer = MMPoseInferencer(
 )
 
 # load images
-video_name = 'data/URFall/images/*/*.png'
+video_name = 'data/CAUCAFall/*/*/*.png'
 images = glob.glob(video_name)
 
 # inference on a single image
-out_dir = f'data/URFall/keypoints'
+out_dir = f'data/CAUCAFall/keypoints'
 if not os.path.exists(out_dir):
     os.makedirs(out_dir)
 result_generator = inferencer(images, out_dir=out_dir, device=device)

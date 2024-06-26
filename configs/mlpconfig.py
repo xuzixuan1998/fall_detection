@@ -10,33 +10,48 @@ class MLPConfig():
     log_path = f'{save_dir}/training.log'
     model_path = f'{save_dir}/best_model.pth'
     csv_path = f'{save_dir}/results.csv'
-    cache_dir = f'{save_dir}/cache'
+    
 
     # Train Dataset
     seed = 42
-    data_path = 'data/KUL/keypoints/predictions/'
-    label_path = 'data/KUL/annotation/annotations.csv'
-    video_path = 'data/KUL/images'
-    n_frames = 5
+    kul_data_path = 'data/KUL/keypoints/predictions'
+    kul_label_path = 'data/KUL_easy/annotation/annotations.json'
+    kul_video_path = 'data/KUL_easy/images'
+    kul_image_path = 'data/KUL/keypoints/visualizations'
+    kul_cache_dir = f'{save_dir}/cache/kul'
+
+    cauca_data_path = 'data/CAUCAFall/keypoints/predictions'
+    cauca_label_path = 'data/CAUCAFall/annotation'
+    cauca_video_path = 'data/CAUCAFall/images'
+    cauca_image_path = 'data/CAUCAFall/keypoints/visualizations'
+    cauca_cache_dir = f'{save_dir}/cache/cauca'
+
+    train_cam = ['cam1', 'cam2', 'cam3']
+    test_cam = ['cam4', 'cam5']
+    n_frames = 10
     train_split = 0.7
     val_split = 0.3
 
     # Test Dataset
-    test_data_path = 'data/URFall/keypoints/predictions/'
-    test_label_path = 'data/URFall/annotation/annotations.csv'
-    test_video_path = 'data/URFall/images'
+    # test_data_path = 'data/URFall/keypoints/predictions'
+    # test_label_path = 'data/URFall/annotation/annotations.csv'
+    # test_video_path = 'data/URFall/images'
+    # test_image_path = 'data/URFall/keypoints/visualizations'
 
     # Model
-    hidden_size = [256, 512]
+    n_classes = 2
+    hidden_size = [32]
+    dropout = 0.5
 
     # Training
     # loss_function = 'ce'
     loss_function = 'focal'
-    gamma = 1
-    alpha = [0.2, 0.6, 0.2]
+    gamma = 4
+    # alpha = [0.3, 0.6]
+    alpha = None
 
     optimizer = 'adam'
     scheduler = 'plateau'
-    learning_rate = 1e-3
-    batch_size = 512
-    n_epochs = 500
+    learning_rate = 0.01
+    batch_size = 1024
+    n_epochs = 200
