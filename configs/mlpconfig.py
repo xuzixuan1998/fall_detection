@@ -1,5 +1,6 @@
 from datetime import datetime
 
+
 class MLPConfig():
     # Save Path
     start_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -32,6 +33,15 @@ class MLPConfig():
     train_split = 0.7
     val_split = 0.3
 
+    # Transformation
+    rotation_range=(-20, 20)
+    scale_range=(0.8, 1.2)
+    translation_range=(-0.1, 0.1)
+    shear_range=(-10, 10)
+    flip_prob=0.5
+    kul_wh = [800,480]
+    cauca_wh = [720,480]
+
     # Test Dataset
     # test_data_path = 'data/URFall/keypoints/predictions'
     # test_label_path = 'data/URFall/annotation/annotations.csv'
@@ -44,7 +54,6 @@ class MLPConfig():
     dropout = 0.5
 
     # Training
-    # loss_function = 'ce'
     loss_function = 'focal'
     gamma = 4
     # alpha = [0.3, 0.6]
@@ -52,6 +61,6 @@ class MLPConfig():
 
     optimizer = 'adam'
     scheduler = 'plateau'
-    learning_rate = 0.01
-    batch_size = 1024
-    n_epochs = 200
+    learning_rate = 1e-4
+    batch_size = 64
+    n_epochs = 500

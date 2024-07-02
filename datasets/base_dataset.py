@@ -3,17 +3,19 @@ from torch.utils.data import Dataset
 import os
 import glob
 import json
+import torch
 import pandas as pd
 
 import pdb
 
 class BaseDataset(Dataset):
-    def __init__(self, data_path, label_path, video_path, image_path, n_frames, device='cuda', save=False, save_path=None):
+    def __init__(self, data_path, label_path, video_path, image_path, n_frames, wh, device='cuda', save=False, save_path=None):
         self.data_path = data_path
         self.label_path = label_path
         self.video_path = video_path
         self.image_path = image_path
         self.n_frames = n_frames
+        self.wh = torch.tensor(wh, dtype=torch.float32).view(1,2,1)
         self.device = device
         self.save = save
         self.save_path = save_path

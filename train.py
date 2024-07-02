@@ -13,8 +13,9 @@ from sklearn.metrics import accuracy_score, confusion_matrix, precision_recall_f
 from configs import MLPConfig
 from models import FallDetectionMLP
 from models.loss import FocalLoss
-from datasets import URFallDataset, KULDataset, CAUCADataset
-from utility import split_train_val_dataloader, save_images, plot_confusion_matrix, collate_fn
+from datasets.transform import KeypointTransform
+from datasets import KULDataset, CAUCADataset, AugmentDataset
+from utility import split_train_val_dataset, save_images, plot_confusion_matrix, collate_fn
 
 import pdb
 
@@ -24,7 +25,7 @@ def train_loop(model, train_loader, optimizer, criterion):
 
     for batch in train_loader:
         # Forward pass
-        outputs = model(batch['data'])
+        outputs = model(batch['keypoints'])
         loss = criterion(outputs, batch['label'])
 
         # Backward pass and optimization
@@ -45,7 +46,7 @@ def evaluate(model, val_loader, criterion, name='val', save_image=False, output_
     total_loss = 0.
     with torch.no_grad():  # Disable gradient computation
         for batch in val_loader:
-            outputs = model(batch['data'])
+            outputs = model(batch['keypoints'])
             loss = criterion(outputs, batch['label'])
             total_loss += loss.item()
 
@@ -157,31 +158,39 @@ def train(model, train_loader, val_loader, test_loader, config, device):
     writer.close()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description="Process the training parameters.")
-
-    # Adding arguments
-    parser.add_argument("--batch_size", type=int, default=1024)
-    parser.add_argument("--learning_rate", type=float, default=0.0005)
-
-    # Parse arguments
-    args = parser.parse_args()
-
     # Device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")  
 
     # Create save_dir
     config = MLPConfig()
+
+    # Parsing
+    parser = argparse.ArgumentParser(description="Process the training parameters.")
+    parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--learning_rate", type=float)
+
+    args = parser.parse_args()
     
     # Overwrite some hyperparameters
-    config.batch_size = args.batch_size
-    config.learning_rate = args.learning_rate
+    if args.batch_size:
+        config.batch_size = args.batch_size
+    if args.learning_rate:
+        config.learning_rate = args.learning_rate
 
     # Init model
     model = FallDetectionMLP(n_frames=config.n_frames, n_classes=config.n_classes, hidden_size=config.hidden_size, dropout=config.dropout)
 
+    # Init transformations
+    transform = KeypointTransform(
+        config.rotation_range,
+        config.scale_range,
+        config.translation_range,
+        config.shear_range,
+        config.flip_prob,
+    )   
     # Load two datasets
-    kul_dataset = KULDataset(config.kul_data_path, config.kul_label_path, config.kul_video_path, config.kul_image_path, config.n_frames, device=device, save=True, save_path=config.kul_cache_dir)
-    cauca_dataset = CAUCADataset(config.cauca_data_path, config.cauca_label_path, config.cauca_video_path, config.cauca_image_path, config.n_frames, device=device, save=True, save_path=config.cauca_cache_dir)
+    kul_dataset = KULDataset(config.kul_data_path, config.kul_label_path, config.kul_video_path, config.kul_image_path, config.n_frames, config.kul_wh, device=device, save=True, save_path=config.kul_cache_dir)
+    cauca_dataset = CAUCADataset(config.cauca_data_path, config.cauca_label_path, config.cauca_video_path, config.cauca_image_path, config.n_frames, config.cauca_wh, device=device, save=True, save_path=config.cauca_cache_dir)
     
     # Split subsets for KUL
     train_indices = kul_dataset.get_indices_by_camera(config.train_cam)
@@ -191,11 +200,17 @@ if __name__ == '__main__':
 
     # Merge training data and create train and validation dataloader
     dataset = ConcatDataset([cauca_dataset, train_subset])
-    train_loader, val_loader = split_train_val_dataloader(dataset, config.train_split, config.val_split, batch_size=config.batch_size, seed=config.seed)
+    train_subset, val_subset = split_train_val_dataset(dataset, config.train_split, config.val_split, batch_size=config.batch_size, seed=config.seed)
 
-    # Create test loader
-    # test_dataset = URFallDataset(config.test_data_path, config.test_label_path, config.test_video_path, config.test_image_path, config.n_frames, device=device)
-    test_loader = DataLoader(test_subset, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn)
+    # Augmentor
+    train_dataset = AugmentDataset(train_subset, transform=transform, device=device)
+    val_dataset = AugmentDataset(val_subset, transform=None, device=device)
+    test_dataset = AugmentDataset(test_subset, transform=None, device=device)
+
+    # Create loaders
+    train_loader = DataLoader(train_dataset, batch_size=config.batch_size, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn)
+    test_loader = DataLoader(test_dataset, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn)
 
     # Train
     train(model, train_loader, val_loader, test_loader, config, device)

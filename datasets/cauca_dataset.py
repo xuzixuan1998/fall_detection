@@ -1,4 +1,5 @@
 from .base_dataset import BaseDataset
+from .transform import KeypointTransform
 
 import os
 import json
@@ -6,14 +7,16 @@ import glob
 import torch
 
 import pdb
+
 class CAUCADataset(BaseDataset):
-    def __init__(self, data_path, label_path, video_path, image_path, n_frames, fps=5, device='cuda', save=False, save_path=None):
+    def __init__(self, data_path, label_path, video_path, image_path, n_frames, wh, fps=5, device='cuda', save=False, save_path=None):
 
         self.data_path = data_path
         self.label_path = label_path
         self.video_path = video_path
         self.image_path = image_path
         self.n_frames = n_frames
+        self.wh = torch.tensor(wh, dtype=torch.float32).view(1,2,1)
         self.device = device
         self.save = save
         self.save_path = save_path
@@ -46,7 +49,8 @@ class CAUCADataset(BaseDataset):
         if self.save_path:
             pt_file = f'{self.save_path}/batch_{str(idx)}.pt'
             if os.path.exists(pt_file):
-                return torch.load(pt_file)
+                data = torch.load(pt_file)
+                return data
                 
         data = []
         paths = []
@@ -63,12 +67,15 @@ class CAUCADataset(BaseDataset):
             with open(json_file, 'r') as file:
                 json_data = json.load(file)
             
-            # Normalization
-            keypoints = torch.tensor(json_data[0]['keypoints'])
+            # Add keypoints
+            keypoints = torch.tensor(json_data[0]['keypoints']).t()
+            data.append(keypoints)
+
+            # Normaliztion
             # bbox = torch.tensor(json_data[0]['bbox'])
             # xy, wh = bbox[:,:2], bbox[:,2:]-bbox[:,:2]
             # data.append((keypoints-xy)/wh)
-            data.append(keypoints/torch.tensor([720, 480]))
+            # data.append(keypoints/torch.tensor(self.wh))
 
             # Add image paths
             paths.append(os.path.join(self.image_path, image_name))
@@ -84,12 +91,12 @@ class CAUCADataset(BaseDataset):
             label[0] = 1
 
         # keypoints difference
-        data = torch.stack(data).view(self.n_frames,-1).to(self.device)
+        data = torch.stack(data) / self.wh
         label = torch.tensor(label, dtype=torch.float32).to(self.device)
         flag = (labels[0] == None or labels[-1] == None)
 
         # Save pt file
-        data_dict = {'image_paths': paths, 'data':data, 'label':label, 'flag':flag}
+        data_dict = {'image_paths': paths, 'keypoints':data, 'label':label, 'flag':flag}
         if self.save:
             torch.save(data_dict, pt_file)
         return data_dict
@@ -101,7 +108,17 @@ if __name__ == '__main__':
     image_path = 'data/CAUCAFall/keypoints/visualizations/'
     n_frames = 5
 
-    dataset = CAUCADataset(data_path, label_path, video_path, image_path, n_frames)
+    # Transformation
+    transform = KeypointTransform(
+    rotation_range=(-15, 15),
+    scale_range=(0.8, 1.2),
+    translation_range=(-0.1,0.1),
+    shear_range=(-10,10),
+    flip_prob=0.5,
+    wh = torch.tensor([720,480],dtype=torch.float32)
+)
+
+    dataset = CAUCADataset(data_path, label_path, video_path, image_path, n_frames, wh=[720,480], transform=transform)
 
     for data in dataset:
         pass 

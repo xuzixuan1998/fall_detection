@@ -2,13 +2,13 @@ import os
 from PIL import Image, ImageDraw, ImageFont
 
 import torch
-from torch.utils.data import DataLoader, random_split
+from torch.utils.data import random_split
 
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 import pdb
-def split_train_val_dataloader(dataset, train_split, val_split, batch_size=32, seed=42):
+def split_train_val_dataset(dataset, train_split, val_split, batch_size=32, seed=42):
     
     torch.manual_seed(seed)
     # Compute size of each split
@@ -19,10 +19,7 @@ def split_train_val_dataloader(dataset, train_split, val_split, batch_size=32, s
     val_size = total_size - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)
-
-    return train_loader, val_loader
+    return train_dataset, val_dataset
     
 def save_images(image_paths, label, prediction, output_dir):
     if not os.path.exists(output_dir):
@@ -52,10 +49,10 @@ def plot_confusion_matrix(cm, class_names):
 
 def collate_fn(batch):
     filtered_batch = [sample for sample in batch if not sample['flag']]
-    data_batch = torch.stack([sample['data'] for sample in filtered_batch])
+    data_batch = torch.stack([sample['keypoints'] for sample in filtered_batch])
     label_batch = torch.stack([sample['label'] for sample in filtered_batch])
     paths_batch = [sample['image_paths'] for sample in filtered_batch]
-    return {'image_paths': paths_batch, 'data':data_batch, 'label':label_batch}
+    return {'image_paths': paths_batch, 'keypoints':data_batch, 'label':label_batch}
 
 if __name__ == '__main__':
     pass

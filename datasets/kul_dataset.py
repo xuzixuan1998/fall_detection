@@ -1,4 +1,5 @@
 from .base_dataset import BaseDataset
+from .transform import KeypointTransform
 
 import torch
 
@@ -9,11 +10,12 @@ import os
 class KULDataset(BaseDataset):
 
     def __getitem__(self, idx):
-        # If the batch data is saved
+        # If the batch data is saved, also do data augmentation
         if self.save_path:
             pt_file = f'{self.save_path}/batch_{str(idx)}.pt'
             if os.path.exists(pt_file):
-                return torch.load(pt_file)
+                data = torch.load(pt_file)
+                return data
                 
         data = []
         paths = []
@@ -27,12 +29,14 @@ class KULDataset(BaseDataset):
             with open(json_file, 'r') as file:
                 json_data = json.load(file)
 
+            # Load keypoints
+            keypoints = torch.tensor(json_data[0]['keypoints']).t()         
+            data.append(keypoints)
+
             # Normalization
-            keypoints = torch.tensor(json_data[0]['keypoints'])
             # bbox = torch.tensor(json_data[0]['bbox'])
             # xy, wh = bbox[:,:2], bbox[:,2:]-bbox[:,:2]
             # data.append((keypoints-xy)/wh)
-            data.append(keypoints/torch.tensor([800, 480]))
 
             # Query and store labels
             image_name = os.path.basename(image_file)
@@ -52,13 +56,13 @@ class KULDataset(BaseDataset):
         else:
             label[0] = 1
 
-        # keypoints difference
-        data = torch.stack(data).view(self.n_frames,-1).to(self.device)
+        # Initiation 
+        data = torch.stack(data) / self.wh
         label = torch.tensor(label, dtype=torch.float32).to(self.device)
         flag = (labels[0] == None or labels[-1] == None)
 
         # Save pt file
-        data_dict = {'image_paths': paths, 'data':data, 'label':label, 'flag':flag}
+        data_dict = {'image_paths': paths, 'keypoints':data, 'label':label, 'flag':flag}
         if self.save:
             torch.save(data_dict, pt_file)
         return data_dict
@@ -79,6 +83,16 @@ if __name__ == '__main__':
     image_path = 'data/KUL/keypoints/visualizations/'
     n_frames = 5
 
-    dataset = KULDataset(data_path, label_path, video_path, image_path, n_frames)
+    # Transformation
+    transform = KeypointTransform(
+    rotation_range=(-15, 15),
+    scale_range=(0.8, 1.2),
+    translation_range=(-0.1,0.1),
+    shear_range=(-10,10),
+    flip_prob=0.5,
+    wh = torch.tensor([800,480],dtype=torch.float32)
+)
+
+    dataset = KULDataset(data_path, label_path, video_path, image_path, n_frames, transform=transform)
     for data in dataset:
         pass 
