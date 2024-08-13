@@ -49,8 +49,9 @@ class MLPConfig():
     # test_image_path = 'data/URFall/keypoints/visualizations'
 
     # Model
+    n_keypoints = 15
     n_classes = 2
-    hidden_size = [32]
+    hidden_size = [256]
     dropout = 0.5
 
     # Training
@@ -63,4 +64,4 @@ class MLPConfig():
     scheduler = 'plateau'
     learning_rate = 1e-4
     batch_size = 64
-    n_epochs = 500
+    n_epochs = 200

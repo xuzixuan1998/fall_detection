@@ -167,6 +167,7 @@ if __name__ == '__main__':
     # Parsing
     parser = argparse.ArgumentParser(description="Process the training parameters.")
     parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--hidden_size", type=int)
     parser.add_argument("--learning_rate", type=float)
 
     args = parser.parse_args()
@@ -174,11 +175,13 @@ if __name__ == '__main__':
     # Overwrite some hyperparameters
     if args.batch_size:
         config.batch_size = args.batch_size
+    if args.hidden_size:
+        config.hidden_size[0] = args.hidden_size
     if args.learning_rate:
         config.learning_rate = args.learning_rate
 
     # Init model
-    model = FallDetectionMLP(n_frames=config.n_frames, n_classes=config.n_classes, hidden_size=config.hidden_size, dropout=config.dropout)
+    model = FallDetectionMLP(n_keypoints=config.n_keypoints, n_frames=config.n_frames, n_classes=config.n_classes, hidden_size=config.hidden_size, dropout=config.dropout)
 
     # Init transformations
     transform = KeypointTransform(
@@ -204,6 +207,7 @@ if __name__ == '__main__':
 
     # Augmentor
     train_dataset = AugmentDataset(train_subset, transform=transform, device=device)
+    # train_dataset = AugmentDataset(train_subset, transform=None, device=device)
     val_dataset = AugmentDataset(val_subset, transform=None, device=device)
     test_dataset = AugmentDataset(test_subset, transform=None, device=device)
 

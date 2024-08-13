@@ -54,5 +54,29 @@ def collate_fn(batch):
     paths_batch = [sample['image_paths'] for sample in filtered_batch]
     return {'image_paths': paths_batch, 'keypoints':data_batch, 'label':label_batch}
 
+def data_stat(loader, cams):
+    stat = {}
+    for batch in loader:
+        images_batch = batch['image_paths']
+        labels = batch['label']
+        for i, clip in enumerate(images_batch):
+            image_name = os.path.basename(clip[0]).lower()
+            if 'cam' in image_name:
+                for cam in cams:
+                    if cam in image_name:
+                        if cam not in stat:
+                            stat[cam] = labels[i]
+                        else:
+                            stat[cam] += labels[i]
+                        break
+            else:
+                if 'cauca' not in stat:
+                    stat['cauca'] = labels[i]
+                else:
+                    stat['cauca'] += labels[i]
+    print(stat)
+
+
+
 if __name__ == '__main__':
     pass

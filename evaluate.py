@@ -1,3 +1,4 @@
+import time
 from tqdm import tqdm 
 
 import torch
@@ -16,10 +17,10 @@ def evaluate(model, loader):
     y_pred = []
     y_true = []
     metrics = {}
-
+    
     with torch.no_grad():  # Disable gradient computation
         for batch in tqdm(loader, desc='Evaluating', unit='batch'):
-            outputs = model(batch['data'])
+            outputs = model(batch['keypoints'].to('cuda'))
 
             pred = torch.argmax(outputs, dim=1)
             true = torch.argmax(batch['label'], dim=1)
@@ -46,11 +47,11 @@ if __name__ == '__main__':
     config = EvaluateConfig()
     
     # Model
-    model = FallDetectionMLP(n_frames=config.n_frames, n_classes=config.n_classes, hidden_size=config.hidden_size).to(device)
+    model = FallDetectionMLP(n_frames=config.n_frames, n_classes=config.n_classes, hidden_size=config.hidden_size,dropout=0.5).to(device)
     model.load_state_dict(torch.load(config.model_path))
     
     # Dataset
-    dataset = CAUCADataset(config.data_path, config.label_path, config.video_path, config.image_path, config.n_frames)
+    dataset = CAUCADataset(config.data_path, config.label_path, config.video_path, config.image_path, config.n_frames, [720,480], device=device)
 
     # DataLoader
     loader = DataLoader(dataset, batch_size=config.batch_size, shuffle=False, collate_fn=collate_fn)

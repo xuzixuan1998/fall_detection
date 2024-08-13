@@ -5,6 +5,7 @@ import os
 import json
 import glob
 import torch
+import shutil
 
 import pdb
 
@@ -74,8 +75,7 @@ class CAUCADataset(BaseDataset):
             # Normaliztion
             # bbox = torch.tensor(json_data[0]['bbox'])
             # xy, wh = bbox[:,:2], bbox[:,2:]-bbox[:,:2]
-            # data.append((keypoints-xy)/wh)
-            # data.append(keypoints/torch.tensor(self.wh))
+            # data.append((keypoints-xy.t())/wh.t())
 
             # Add image paths
             paths.append(os.path.join(self.image_path, image_name))

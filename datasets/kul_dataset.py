@@ -3,6 +3,7 @@ from .transform import KeypointTransform
 
 import torch
 
+import shutil
 import json
 import pdb
 import os
@@ -25,6 +26,7 @@ class KULDataset(BaseDataset):
         start_idx = self.valid_idx[idx]
         for i in range(self.n_frames):
             image_file = self.data_files[start_idx+i]
+
             json_file = os.path.join(self.data_path, os.path.basename(image_file).replace('.png', '.json'))
             with open(json_file, 'r') as file:
                 json_data = json.load(file)
@@ -36,7 +38,7 @@ class KULDataset(BaseDataset):
             # Normalization
             # bbox = torch.tensor(json_data[0]['bbox'])
             # xy, wh = bbox[:,:2], bbox[:,2:]-bbox[:,:2]
-            # data.append((keypoints-xy)/wh)
+            # data.append((keypoints-xy.t())/wh.t())
 
             # Query and store labels
             image_name = os.path.basename(image_file)
@@ -58,6 +60,13 @@ class KULDataset(BaseDataset):
 
         # Initiation 
         data = torch.stack(data) / self.wh
+
+        # Remove keypoints 
+        remove_idx = [15,16]
+        indices = torch.tensor([i for i in range(data.shape[-1]) if i not in remove_idx])
+        data = torch.index_select(data, dim=-1, index=indices)
+
+        # data = torch.stack(data)
         label = torch.tensor(label, dtype=torch.float32).to(self.device)
         flag = (labels[0] == None or labels[-1] == None)
 
@@ -68,7 +77,7 @@ class KULDataset(BaseDataset):
         return data_dict
     
     def get_indices_by_camera(self, camera_ids):
-        indices = []
+        indices = [] 
         for i, idx in enumerate(self.valid_idx):
             json_file = self.data_files[idx]
             _, cam_name, _ = os.path.basename(json_file).split('_')
